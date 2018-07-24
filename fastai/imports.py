@@ -18,6 +18,8 @@ from sklearn import metrics, ensemble, preprocessing
 from operator import itemgetter, attrgetter
 from pathlib import Path
 from distutils.version import LooseVersion
+import requests
+from io import BytesIO
 
 from matplotlib import pyplot as plt, rcParams, animation
 from ipywidgets import interact, interactive, fixed, widgets
