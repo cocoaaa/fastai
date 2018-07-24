@@ -7,6 +7,8 @@ from .transforms import *
 from .layer_optimizer import *
 from .dataloader import DataLoader
 
+import pdb
+
 def get_cv_idxs(n, cv_idx=0, val_pct=0.2, seed=42):
     """ Get a list of index values for Validation set from a dataset
     
@@ -52,10 +54,12 @@ def resize_imgs(fnames, targ, path, new_path):
     return os.path.join(path,new_path,str(targ))
 
 def read_dir(path, folder):
-    """ Returns a list of relative file paths to `path` for all files within `folder` """
+    """ Returns a list of relative file paths to `path` for all files within `folder` 
+    Raises an error is the `folder` is empty or contains only subdirectories without any file."""
     full_path = os.path.join(path, folder)
     fnames = glob(f"{full_path}/*.*")
     directories = glob(f"{full_path}/*/")
+    # pdb.set_trace()
     if any(fnames):
         return [os.path.relpath(f,path) for f in fnames]
     elif any(directories):
@@ -226,14 +230,18 @@ def open_image(fn):
         #if len(res.shape)==2: res = np.repeat(res[...,None],3,2)
         #return res
         try:
-            if str(fn).startswith("http"):
-                req = urllib.urlopen(str(fn))
-                image = np.asarray(bytearray(req.read()), dtype="uint8")
-                im = cv2.imdecode(image, flags).astype(np.float32)/255
+            if str(fn).startswith("https") or str(fn).startswith("http") :
+                image = np.asarray(Image.open(requests.get(str(fn), stream=True).raw)
+, dtype='uint8')
+                im = image.astype(np.float32)/255
             else:
                 im = cv2.imread(str(fn), flags).astype(np.float32)/255
+                im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+                print("color channel order corrected")
+
             if im is None: raise OSError(f'File not recognized by opencv: {fn}')
-            return cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+            return im
+        
         except Exception as e:
             raise OSError('Error handling image at: {}'.format(fn)) from e
 
@@ -246,6 +254,11 @@ class FilesDataset(BaseDataset):
     def get_n(self): return len(self.fnames)
 
     def resize_imgs(self, targ, new_path):
+        """
+        Resizes images in self.fnames (under self.path),
+        saves resized images in self.path/new_path/target folder
+        and returns a new FilesDataset object with this new folder
+        """
         dest = resize_imgs(self.fnames, targ, self.path, new_path)
         return self.__class__(self.fnames, self.y, self.transform, dest)
 
@@ -294,7 +307,7 @@ class ArraysDataset(BaseDataset):
 
 class ArraysIndexDataset(ArraysDataset):
     def get_c(self): return int(self.y.max())+1
-    def get_y(self, i): return self.y[i]
+    # def get_y(self, i): return self.y[i] #redundant
 
 
 class ArraysIndexRegressionDataset(ArraysIndexDataset):
@@ -314,6 +327,7 @@ class ModelData():
 
     @classmethod
     def from_dls(cls, path,trn_dl,val_dl,test_dl=None):
+        #todo: this looks funcky?
         #trn_dl,val_dl = DataLoader(trn_dl),DataLoader(val_dl)
         #if test_dl: test_dl = DataLoader(test_dl)
         return cls(path, trn_dl, val_dl, test_dl)
